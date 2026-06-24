@@ -6,13 +6,21 @@
 
     <form method="POST" action="{{ route('register.complete') }}">
         @csrf
-        <input type="hidden" name="token" value="{{ $attendee->invitation_token }}">
+        <input type="hidden" name="token" value="{{ $attendee ? $attendee->invitation_token : '' }}">
 
-        <!-- Email (Read Only) -->
+        <!-- Email -->
         <div>
-            <label for="email" class="block font-medium text-sm text-gray-700">Email (Terdaftar)</label>
-            <input id="email" class="block mt-1 w-full border-gray-300 bg-gray-100 rounded-md shadow-sm"
-                type="email" name="email" value="{{ $attendee->email }}" readonly />
+            <label for="email" class="block font-medium text-sm text-gray-700">
+                Email <span class="text-red-500">*</span>
+            </label>
+            <input id="email" 
+                class="block mt-1 w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm {{ $attendee ? 'bg-gray-100' : '' }}"
+                type="email" 
+                name="email" 
+                value="{{ old('email', $attendee ? $attendee->email : '') }}" 
+                {{ $attendee ? 'readonly' : 'required' }} 
+                placeholder="Masukkan alamat email Anda" />
+            @error('email') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
         </div>
 
         <!-- Nama Lengkap -->
@@ -35,27 +43,36 @@
             <input id="phone"
                 class="block mt-1 w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
                 type="text" name="phone"
-                value="{{ old('phone', $attendee->invite_phone ? '0' . substr($attendee->invite_phone, 2) : '') }}"
+                value="{{ old('phone', ($attendee && $attendee->invite_phone) ? '0' . substr($attendee->invite_phone, 2) : '') }}"
                 required placeholder="Contoh: 081234567890" />
             <p class="text-xs text-gray-500 mt-1">Tiket akan dikirim ke nomor WhatsApp ini.</p>
             @error('phone') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
         </div>
 
-        <!-- Instansi/Perusahaan (Dropdown) -->
+        <!-- Instansi / Perusahaan (Dropdown Hardcoded) -->
         <div class="mt-4">
-            <label for="company_id" class="block font-medium text-sm text-gray-700">
+            <label for="company_type" class="block font-medium text-sm text-gray-700">
                 Instansi / Perusahaan <span class="text-red-500">*</span>
             </label>
-            <select id="company_id" name="company_id" required
+            <select id="company_type" name="company_type" required
                 class="block mt-1 w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm">
-                <option value="">-- Pilih Perusahaan --</option>
-                @foreach($companies as $comp)
-                    <option value="{{ $comp->id }}" data-name="{{ $comp->name }}" {{ old('company_id') == $comp->id ? 'selected' : '' }}>
-                        {{ $comp->name }}
-                    </option>
-                @endforeach
+                <option value="">-- Pilih Instansi / Perusahaan --</option>
+                <option value="Balisuperhost" {{ old('company_type') == 'Balisuperhost' ? 'selected' : '' }}>Balisuperhost</option>
+                <option value="Vendor" {{ old('company_type') == 'Vendor' ? 'selected' : '' }}>Vendor</option>
+                <option value="Others" {{ old('company_type') == 'Others' ? 'selected' : '' }}>Others</option>
             </select>
-            @error('company_id') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+            @error('company_type') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+        </div>
+
+        <!-- Board untuk mengetik dari mana dia (Muncul jika pilih Others) -->
+        <div id="company-other-container" class="mt-4" style="display: none;">
+            <label for="company_other" class="block font-medium text-sm text-gray-700">
+                Nama Instansi / Perusahaan <span class="text-red-500">*</span>
+            </label>
+            <input id="company_other" name="company_other" type="text"
+                class="block mt-1 w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                value="{{ old('company_other') }}" placeholder="Ketik nama instansi/perusahaan Anda" />
+            @error('company_other') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
         </div>
 
         <!-- Departemen (Dropdown - Bersyarat, hanya muncul untuk Balisuperhost) -->
@@ -80,26 +97,42 @@
 
         <script>
             document.addEventListener('DOMContentLoaded', function () {
-                const companySelect = document.getElementById('company_id');
+                const companyTypeSelect = document.getElementById('company_type');
+                const companyOtherContainer = document.getElementById('company-other-container');
+                const companyOtherInput = document.getElementById('company_other');
                 const deptContainer = document.getElementById('department-container');
                 const deptSelect = document.getElementById('department_id');
 
-                function toggleDepartment() {
-                    const selectedOption = companySelect.options[companySelect.selectedIndex];
-                    const companyName = selectedOption ? selectedOption.getAttribute('data-name') : '';
+                function handleCompanyChange() {
+                    const val = companyTypeSelect.value;
 
-                    if (companyName && companyName.toLowerCase() === 'balisuperhost') {
+                    if (val === 'Balisuperhost') {
                         deptContainer.style.display = 'block';
                         deptSelect.setAttribute('required', 'required');
+                        
+                        companyOtherContainer.style.display = 'none';
+                        companyOtherInput.removeAttribute('required');
+                        companyOtherInput.value = '';
+                    } else if (val === 'Others') {
+                        companyOtherContainer.style.display = 'block';
+                        companyOtherInput.setAttribute('required', 'required');
+
+                        deptContainer.style.display = 'none';
+                        deptSelect.removeAttribute('required');
+                        deptSelect.value = '';
                     } else {
                         deptContainer.style.display = 'none';
                         deptSelect.removeAttribute('required');
-                        deptSelect.value = ''; // Reset selection
+                        deptSelect.value = '';
+
+                        companyOtherContainer.style.display = 'none';
+                        companyOtherInput.removeAttribute('required');
+                        companyOtherInput.value = '';
                     }
                 }
 
-                companySelect.addEventListener('change', toggleDepartment);
-                toggleDepartment();
+                companyTypeSelect.addEventListener('change', handleCompanyChange);
+                handleCompanyChange();
             });
         </script>
 
